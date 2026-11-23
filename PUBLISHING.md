@@ -13,7 +13,7 @@ Validation before publication:
 PYTHONPATH=src python -m unittest discover -s tests -p test_profiles.py -v
 ```
 
-The 53 profile, playlist naming, count-first and upstream CLI runner tests have
-passed against the actual Gamdl 4.1.1 runtime and its native extension. Both
-migrated configurations passed the official validator. The existing upstream CI
-runs the full suite on Python 3.10–3.14; check its result after publishing.
+The full 779-test suite, including failed-only retries, passed on Python
+3.10–3.14 against the actual Gamdl 4.1.1 runtime and native extension. Both
+migrated configurations passed the official validator. Upstream CI remains
+enabled; check its result after publishing.

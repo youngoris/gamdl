@@ -15,7 +15,9 @@ from ..profiles import profile_path
 
 
 def _line(value):
-    return "".join(" " if ord(char) < 32 or ord(char) == 127 else char for char in str(value))
+    return "".join(
+        " " if ord(char) < 32 or ord(char) == 127 else char for char in str(value)
+    )
 
 
 async def run_retries(entries, queue):
@@ -23,7 +25,9 @@ async def run_retries(entries, queue):
 
     groups = defaultdict(list)
     for ticket in entries:
-        groups[(ticket["config_path"], json.dumps(ticket["options"], sort_keys=True))].append(ticket)
+        groups[
+            (ticket["config_path"], json.dumps(ticket["options"], sort_keys=True))
+        ].append(ticket)
     exit_code = 0
     allowed = {field.name for field in fields(RipOptions)}
     for (path, snapshot), tickets in groups.items():
@@ -31,7 +35,13 @@ async def run_retries(entries, queue):
             raise ValueError(f"Original configuration is missing: {path}")
         defaults = click_default_map(load_config(Path(path) if path else None))
         values = {name: value for name, value in defaults.items() if name in allowed}
-        values.update({name: value for name, value in json.loads(snapshot).items() if name in allowed})
+        values.update(
+            {
+                name: value
+                for name, value in json.loads(snapshot).items()
+                if name in allowed
+            }
+        )
         options = RipOptions(**values)
         options.urls = ()
         options.retry_entries = tickets
@@ -46,10 +56,26 @@ async def run_retries(entries, queue):
 
 
 @click.command("retry")
-@click.option("--list", "list_only", is_flag=True, help="List pending/failed tracks without authenticating")
-@click.option("--id", "media_ids", multiple=True, help="Retry only these recorded media IDs")
-@click.option("--profile", type=click.Choice(("ab", "pl")), help="Filter by album or playlist profile")
-@click.option("--queue", "queue_path", type=click.Path(path_type=Path), help="Use a specific failure queue")
+@click.option(
+    "--list",
+    "list_only",
+    is_flag=True,
+    help="List pending/failed tracks without authenticating",
+)
+@click.option(
+    "--id", "media_ids", multiple=True, help="Retry only these recorded media IDs"
+)
+@click.option(
+    "--profile",
+    type=click.Choice(("ab", "pl")),
+    help="Filter by album or playlist profile",
+)
+@click.option(
+    "--queue",
+    "queue_path",
+    type=click.Path(path_type=Path),
+    help="Use a specific failure queue",
+)
 @click.pass_context
 def retry(ctx, list_only, media_ids, profile, queue_path):
     """Retry only failed IDs, preserving their original profile and playlist index."""
@@ -69,8 +95,14 @@ def retry(ctx, list_only, media_ids, profile, queue_path):
             for entry in entries:
                 source = entry.get("source") or {}
                 number = f"{source['index'] + 1:03d}" if "index" in source else "—"
-                label = Path(entry["config_path"]).stem if entry["config_path"] else "default"
-                click.echo(f"{entry['id']}  {label}  {number}  {_line(entry.get('title', entry['id']))}  {entry.get('status', 'failed')}")
+                label = (
+                    Path(entry["config_path"]).stem
+                    if entry["config_path"]
+                    else "default"
+                )
+                click.echo(
+                    f"{entry['id']}  {label}  {number}  {_line(entry.get('title', entry['id']))}  {entry.get('status', 'failed')}"
+                )
             click.echo(f"共 {len(entries)} 首；使用 gamdl retry --id ID 重试指定曲目。")
             return
         result = asyncio.run(run_retries(entries, queue))

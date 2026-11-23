@@ -26,21 +26,30 @@ def fixture(root, *, index=33, media_id="423354412"):
     api = Mock(active_subscription=True, storefront="cn")
     api.get_playlist = AsyncMock()
     api.get_library_playlist = AsyncMock()
-    api.get_song = AsyncMock(return_value={
-        "data": [{"id": media_id, "type": "songs", "attributes": {"name": "Road"}}],
-    })
+    api.get_song = AsyncMock(
+        return_value={
+            "data": [{"id": media_id, "type": "songs", "attributes": {"name": "Road"}}],
+        }
+    )
     playlist = Playlist("p.original", api=api, is_library=True)
-    playlist._memo.seed("metadata", PlaylistMetadata("p.original", "RMH精选2-2", "Andre"))
+    playlist._memo.seed(
+        "metadata", PlaylistMetadata("p.original", "RMH精选2-2", "Andre")
+    )
     media = Song.from_metadata(
-        {"id": media_id, "type": "songs", "attributes": {"name": "Road"}}, api=api,
+        {"id": media_id, "type": "songs", "attributes": {"name": "Road"}},
+        api=api,
     )
     media.source = MediaSource("playlist_tracks", "p.original", index, playlist)
     config = root / "config-pl.yml"
     if not config.exists():
-        config.write_text(yaml.safe_dump({
-            "auth": {"mode": "cookies", "cookies_path": "unused.txt"},
-            "output": {"directory": str(root / "changed-config-directory")},
-        }))
+        config.write_text(
+            yaml.safe_dump(
+                {
+                    "auth": {"mode": "cookies", "cookies_path": "unused.txt"},
+                    "output": {"directory": str(root / "changed-config-directory")},
+                }
+            )
+        )
     options = RipOptions(
         output_dir=str(root / "original-directory"),
         song_codec_priority=("aac-web",),
@@ -86,10 +95,14 @@ class FailureQueueTests(unittest.TestCase):
 
     def test_duplicate_song_occurrences_keep_distinct_original_indices(self):
         self.queue.begin(self.ticket)
-        self.media.source = MediaSource("playlist_tracks", "p.original", 0, self.media.source.playlist)
+        self.media.source = MediaSource(
+            "playlist_tracks", "p.original", 0, self.media.source.playlist
+        )
         first = ticket_for(self.media, "Road", self.options, self.config)
         self.queue.begin(first)
-        self.assertEqual({item["source"]["index"] for item in self.queue.items()}, {0, 33})
+        self.assertEqual(
+            {item["source"]["index"] for item in self.queue.items()}, {0, 33}
+        )
 
     def test_authentication_tokens_and_cookie_paths_are_not_recorded(self):
         self.options.media_user_token = "DO_NOT_SAVE_TOKEN"
@@ -130,15 +143,21 @@ class RetryIntegrationTests(unittest.IsolatedAsyncioTestCase):
             if fail:
                 raise ValueError("DO_NOT_SAVE_SIGNED_URL")
             return DownloadResult(
-                media.id, self.root / "original-directory" / "034 Road.m4a",
-                MediaStatus.DOWNLOADED, 1, SongCodec.AAC_WEB,
+                media.id,
+                self.root / "original-directory" / "034 Road.m4a",
+                MediaStatus.DOWNLOADED,
+                1,
+                SongCodec.AAC_WEB,
             )
 
         downloader = Mock(itunes_api=None, download=AsyncMock(side_effect=download))
         console = Console(file=StringIO(), force_terminal=False)
         resolver = Mock(side_effect=AssertionError("Collections must not be traversed"))
         with (
-            patch("gamdl.cli.commands.runner._authenticate", new=AsyncMock(return_value=(self.api, None))),
+            patch(
+                "gamdl.cli.commands.runner._authenticate",
+                new=AsyncMock(return_value=(self.api, None)),
+            ),
             patch("gamdl.cli.commands.runner.create_drm", new=AsyncMock()),
             patch("gamdl.cli.commands.runner.output_console", return_value=console),
             patch("gamdl.cli.commands.runner.Downloader", return_value=downloader),
@@ -183,15 +202,25 @@ class RetryCommandTests(unittest.TestCase):
             queue = FailureQueue(root / "failed.json")
             queue.begin(ticket_for(media, "Road", options, config))
             with (
-                patch("gamdl.cli.main.default_config_path", return_value=root / "unused.yml"),
-                patch("gamdl.cli.commands.retry.run_retries", new=AsyncMock(return_value=0)) as run,
+                patch(
+                    "gamdl.cli.main.default_config_path",
+                    return_value=root / "unused.yml",
+                ),
+                patch(
+                    "gamdl.cli.commands.retry.run_retries",
+                    new=AsyncMock(return_value=0),
+                ) as run,
             ):
-                result = CliRunner().invoke(main, ["retry", "--queue", str(queue.path), "--list"])
+                result = CliRunner().invoke(
+                    main, ["retry", "--queue", str(queue.path), "--list"]
+                )
                 self.assertEqual(result.exit_code, 0, result.output)
                 self.assertIn("423354412", result.output)
                 self.assertIn("001", result.output)
                 run.assert_not_awaited()
-                selected = CliRunner().invoke(main, ["retry", "--queue", str(queue.path), "--id", "423354412"])
+                selected = CliRunner().invoke(
+                    main, ["retry", "--queue", str(queue.path), "--id", "423354412"]
+                )
                 self.assertEqual(selected.exit_code, 0, selected.output)
                 self.assertEqual(run.await_args.args[0][0]["id"], "423354412")
 

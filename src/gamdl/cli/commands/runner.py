@@ -339,34 +339,38 @@ async def run_rip(options: RipOptions) -> int:
                             request_stop(error)
                             raise
 
-                resolver = None if retry_entries is not None else MediaResolver(
-                    api,
-                    auto_select=[
-                        *DEFAULT_AUTO_SELECT,
-                        *(
-                            ARTIST_AUTO_SELECT_NAMES[name]
-                            for name in artist_values
-                            if name != "all"
-                        ),
-                        *(
-                            ARTIST_AUTO_SELECT_NAMES[name]
-                            for name in ("all-albums", "music-videos")
-                            if "all" in artist_values
-                        ),
-                        *(
-                            LIBRARY_AUTO_SELECT_NAMES[name]
-                            for name in library_values
-                            if name != "all"
-                        ),
-                        *(
-                            LIBRARY_AUTO_SELECT_NAMES.values()
-                            if "all" in library_values
-                            else ()
-                        ),
-                    ],
-                    select=options.select,
-                    library_auto_select=bool(library_values),
-                    selector=choose_media,
+                resolver = (
+                    None
+                    if retry_entries is not None
+                    else MediaResolver(
+                        api,
+                        auto_select=[
+                            *DEFAULT_AUTO_SELECT,
+                            *(
+                                ARTIST_AUTO_SELECT_NAMES[name]
+                                for name in artist_values
+                                if name != "all"
+                            ),
+                            *(
+                                ARTIST_AUTO_SELECT_NAMES[name]
+                                for name in ("all-albums", "music-videos")
+                                if "all" in artist_values
+                            ),
+                            *(
+                                LIBRARY_AUTO_SELECT_NAMES[name]
+                                for name in library_values
+                                if name != "all"
+                            ),
+                            *(
+                                LIBRARY_AUTO_SELECT_NAMES.values()
+                                if "all" in library_values
+                                else ()
+                            ),
+                        ],
+                        select=options.select,
+                        library_auto_select=bool(library_values),
+                        selector=choose_media,
+                    )
                 )
 
                 warned_interactive_alac = False
@@ -379,8 +383,11 @@ async def run_rip(options: RipOptions) -> int:
                             return
                         try:
                             retry_queue.fail(
-                                retry_key, message,
-                                refreshed=ticket_for(media, title, options, retry_config),
+                                retry_key,
+                                message,
+                                refreshed=ticket_for(
+                                    media, title, options, retry_config
+                                ),
                             )
                         except (OSError, ValueError) as error:
                             record_failure("Retry queue", error)
@@ -604,12 +611,14 @@ async def run_rip(options: RipOptions) -> int:
                         check_stopped()
                         try:
                             if retry_entries is not None:
+
                                 async def retry_source():
                                     for ticket in retry_entries:
                                         check_stopped()
                                         media = restore_media(ticket, api)
                                         retry_tickets[id(media)] = ticket
                                         yield media
+
                                 source_iterator = retry_source()
                             elif hasattr(options, "search_term"):
 
@@ -868,7 +877,9 @@ async def run_rip(options: RipOptions) -> int:
             record_failure("Retry queue", error)
             return 1
         if remaining:
-            console.print(f"失败/中断队列还有 {remaining} 首；使用 gamdl retry 重试，或 gamdl retry --list 查看。")
+            console.print(
+                f"失败/中断队列还有 {remaining} 首；使用 gamdl retry 重试，或 gamdl retry --list 查看。"
+            )
         if retry_entries is not None:
             requested = {entry["key"] for entry in retry_entries}
             if any(entry["key"] in requested for entry in remaining_items):

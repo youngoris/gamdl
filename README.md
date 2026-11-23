@@ -4,6 +4,8 @@
 
 <h1 align="center">Gamdl<br><sub><sub>Glomatico's Apple Music Downloader</sub></sub></h1>
 
+> **此 fork 新增**：专辑与歌单配置切换、真实歌单目录、从 `001` 开始的编号、下载前总数统计，以及只重试失败曲目的 `gamdl retry`。详见[配置与重试说明](docs/profiles.md)。
+
 [![PyPI version](https://img.shields.io/pypi/v/gamdl?color=blue)](https://pypi.org/project/gamdl/)
 [![Python versions](https://img.shields.io/pypi/pyversions/gamdl)](https://pypi.org/project/gamdl/)
 [![License](https://img.shields.io/github/license/glomatico/gamdl)](LICENSE)
