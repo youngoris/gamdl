@@ -12,9 +12,14 @@ from .config.commands import config_group
 from .config.loader import ConfigError, click_default_map, load_config
 from .config.models import AppConfig, config_path as default_config_path
 from .errors import CliCommand
+from .profiles import ProfileRoutingMixin, profiles, resolve_config_path, use_profile
 
 
-@click.group(cls=CliCommand, context_settings={"auto_envvar_prefix": "GAMDL"})
+class ProfileCommand(ProfileRoutingMixin, CliCommand):
+    """Keep upstream error handling while adding ab/pl command aliases."""
+
+
+@click.group(cls=ProfileCommand, context_settings={"auto_envvar_prefix": "GAMDL"})
 @click.version_option(__version__, "--version", "-v", prog_name="Gamdl")
 @click.option(
     "--config",
@@ -27,7 +32,8 @@ from .errors import CliCommand
 @click.pass_context
 def main(ctx: click.Context, config_file: Path | None, no_config: bool) -> None:
     """Gamdl — download Apple Music with configurable codecs and progress."""
-    path = (config_file or default_config_path()).expanduser()
+    path = resolve_config_path(config_file or default_config_path())
+    profile_management = ctx.invoked_subcommand in {"use", "profiles"}
     ctx.obj = {
         "config_path": path,
         "config_explicit": config_file is not None,
@@ -36,7 +42,7 @@ def main(ctx: click.Context, config_file: Path | None, no_config: bool) -> None:
     if (
         not no_config
         and not path.exists()
-        and ctx.invoked_subcommand not in {None, "config"}
+        and ctx.invoked_subcommand not in {None, "config", "use", "profiles"}
     ):
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -54,7 +60,7 @@ def main(ctx: click.Context, config_file: Path | None, no_config: bool) -> None:
         except OSError as error:
             raise click.ClickException(f"Cannot create config: {error}") from None
     try:
-        config = load_config(None if no_config else path)
+        config = load_config(None if no_config or profile_management else path)
     except ConfigError as exc:
         raise click.ClickException(str(exc)) from None
     ctx.obj["settings"] = config
@@ -78,3 +84,5 @@ main.add_command(config_group)
 main.add_command(database_group)
 main.add_command(organize)
 main.add_command(sync)
+main.add_command(use_profile)
+main.add_command(profiles)

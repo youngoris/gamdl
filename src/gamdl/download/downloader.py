@@ -1095,6 +1095,32 @@ class Downloader:
             raise ValueError(
                 "playlist_index requires a playlist path and non-negative index"
             )
+        # Playlist naming needs source context even when no M3U is requested.
+        naming_needs_playlist = (
+            output is None
+            and self.path_formatter is not None
+            and any(
+                "{playlist_" in getattr(self.path_formatter, name)
+                for name in (
+                    "album_folder_template",
+                    "compilation_folder_template",
+                    "no_album_folder_template",
+                    "single_disc_file_template",
+                    "multi_disc_file_template",
+                    "no_album_file_template",
+                )
+            )
+        )
+        if naming_needs_playlist and playlist_tags is None:
+            source = media.source
+            if source is not None and source.playlist is not None:
+                playlist = await source.playlist.get_metadata()
+                playlist_tags = PlaylistTags(
+                    title=playlist.title,
+                    artist=playlist.artist,
+                    playlist_id=playlist.id,
+                    track=source.index + 1,
+                )
         if save_playlist and playlist_path is None:
             if self.path_formatter is None:
                 raise ValueError("save_playlist requires a PathFormatter")

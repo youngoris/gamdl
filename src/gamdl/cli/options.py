@@ -109,6 +109,13 @@ class RipOptions:
             help="Parallel media segment requests per track",
         ),
     ] = 8
+    count_first: Annotated[
+        bool,
+        option(
+            "--count-first/--stream-discovery",
+            help="Count selected tracks before downloading (enabled by ab/pl aliases)",
+        ),
+    ] = False
     concurrent_downloads: Annotated[
         int,
         option(

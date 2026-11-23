@@ -59,6 +59,7 @@ from ..prompts import interactive, select_media, select_stream
 from ..session import authenticate as _authenticate
 from ..session import create_drm
 from ..terminal import TerminalController
+from ..track_plan import collect_plan, replay_source
 from ..warnings import (
     warn_alac_without_wrapper,
     warn_content_restrictions,
@@ -544,7 +545,26 @@ async def run_rip(options: RipOptions) -> int:
 
                 async def discover() -> None:
                     nonlocal found
-                    for url in options.urls:
+                    plan = None
+                    if getattr(options, "count_first", False) and not hasattr(options, "search_term"):
+                        def source_failed(error):
+                            record_failure("Source", error)
+                            counts["failed"] += 1
+                            if options.fail_fast:
+                                stop = _StopRip()
+                                request_stop(stop)
+                                raise stop from error
+
+                        plan = await collect_plan(
+                            resolver,
+                            options.urls,
+                            progress=progress,
+                            console=console,
+                            check_stopped=check_stopped,
+                            source_failed=source_failed,
+                        )
+                        progress.start_batch(sum(len(items) for items in plan))
+                    for source_index, url in enumerate(options.urls):
                         check_stopped()
                         try:
                             if hasattr(options, "search_term"):
@@ -672,7 +692,11 @@ async def run_rip(options: RipOptions) -> int:
 
                                 source_iterator = search_source()
                             else:
-                                source_iterator = resolver.from_url(url)
+                                source_iterator = (
+                                    replay_source(plan[source_index])
+                                    if plan is not None
+                                    else resolver.from_url(url)
+                                )
                             async with aclosing(source_iterator) as source:
                                 async for media in source:
                                     check_stopped()

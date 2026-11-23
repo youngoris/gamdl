@@ -59,7 +59,7 @@ jobs:
 
       - name: Check formatting
         run: |
-          uv format --check
+          uv format --check --diff
           cargo fmt --manifest-path native/Cargo.toml --check
 
       - name: Build source and wheel distributions
