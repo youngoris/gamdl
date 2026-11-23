@@ -10,6 +10,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+
 def read_ini(path):
     parser = configparser.ConfigParser(interpolation=None)
     if not path.is_file():
@@ -29,7 +30,11 @@ def value(raw):
 
 
 def csv(raw):
-    return [part.strip() for part in str(raw).split(",") if part.strip()] if value(raw) is not None else []
+    return (
+        [part.strip() for part in str(raw).split(",") if part.strip()]
+        if value(raw) is not None
+        else []
+    )
 
 
 def absolute(raw, legacy_cwd):
@@ -43,7 +48,9 @@ def convert(old, legacy_cwd):
     if value(old.get("synced_lyrics_only", "false")):
         raise ValueError("synced_lyrics_only=true 需要单独处理；停止以避免改变行为。")
     output = {
-        "directory": absolute(old.get("output_path", "./Music/GAMDL_Downloads"), legacy_cwd),
+        "directory": absolute(
+            old.get("output_path", "./Music/GAMDL_Downloads"), legacy_cwd
+        ),
         "temp_path": absolute(old.get("temp_path"), legacy_cwd),
         "embedded_cover_size": int(old.get("cover_size", "1200")),
         "file_cover_size": int(old.get("cover_size", "1200")),
@@ -52,27 +59,48 @@ def convert(old, legacy_cwd):
         "no_lyrics_file": bool(value(old.get("no_synced_lyrics", "false"))),
         "music_video_container": old.get("music_video_remux_format", "m4v"),
     }
-    for key in ("save_cover", "save_playlist", "cover_format", "date_tag_template",
-                "album_folder_template", "compilation_folder_template", "no_album_folder_template",
-                "single_disc_file_template", "multi_disc_file_template", "no_album_file_template"):
+    for key in (
+        "save_cover",
+        "save_playlist",
+        "cover_format",
+        "date_tag_template",
+        "album_folder_template",
+        "compilation_folder_template",
+        "no_album_folder_template",
+        "single_disc_file_template",
+        "multi_disc_file_template",
+        "no_album_file_template",
+    ):
         if key in old:
             output[key] = value(old[key])
-    output["truncate"] = int(old["truncate"]) if value(old.get("truncate")) is not None else None
+    output["truncate"] = (
+        int(old["truncate"]) if value(old.get("truncate")) is not None else None
+    )
     if "all" in output["exclude_tags"]:
         output["no_tag"] = True
         output["exclude_tags"] = []
     # 3.x 把完整播放列表路径存在 file_template；4.x 分成 folder/file。
-    playlist_path = old.get("playlist_file_template", "Playlists/{playlist_artist}/{playlist_title}")
+    playlist_path = old.get(
+        "playlist_file_template", "Playlists/{playlist_artist}/{playlist_title}"
+    )
     if "/" in playlist_path:
-        output["playlist_folder_template"], output["playlist_file_template"] = playlist_path.rsplit("/", 1)
+        output["playlist_folder_template"], output["playlist_file_template"] = (
+            playlist_path.rsplit("/", 1)
+        )
     else:
-        output["playlist_folder_template"] = old.get("playlist_folder_template", "Playlists/{playlist_artist}")
+        output["playlist_folder_template"] = old.get(
+            "playlist_folder_template", "Playlists/{playlist_artist}"
+        )
         output["playlist_file_template"] = playlist_path
     download = {
         "overwrite": bool(value(old.get("overwrite", "false"))),
         "use_album_date": bool(value(old.get("use_album_date", "false"))),
-        "song_codec_priority": csv(old.get("song_codec_piority", old.get("song_codec_priority", "aac-web"))),
-        "music_video_codec_priority": csv(old.get("music_video_codec_priority", "h264,h265")),
+        "song_codec_priority": csv(
+            old.get("song_codec_piority", old.get("song_codec_priority", "aac-web"))
+        ),
+        "music_video_codec_priority": csv(
+            old.get("music_video_codec_priority", "h264,h265")
+        ),
         "max_height": int(old.get("music_video_resolution", "1080p").rstrip("p")),
         # 4.x represents automatic best-available quality with null.
         "uploaded_video_quality": (
@@ -98,11 +126,19 @@ def convert(old, legacy_cwd):
         # 4.x 不能打开 3.x 索引，给新索引独立路径，旧索引保留。
         path = Path(db_path)
         database["path"] = str(path.with_name(path.stem + "-v4" + path.suffix))
-    return {"config_version": 1, "auth": auth, "download": download, "output": output,
-            "database": database, "ui": {"no_tracebacks": bool(value(old.get("no_exceptions", "false")))}}
+    return {
+        "config_version": 1,
+        "auth": auth,
+        "download": download,
+        "output": output,
+        "database": database,
+        "ui": {"no_tracebacks": bool(value(old.get("no_exceptions", "false")))},
+    }
 
 
-def migrate_profiles(root: Path, legacy_cwd: Path, *, force: bool = False) -> list[Path]:
+def migrate_profiles(
+    root: Path, legacy_cwd: Path, *, force: bool = False
+) -> list[Path]:
     """Validate both candidates before writing; preserve originals on failure."""
     import yaml
 
@@ -119,7 +155,9 @@ def migrate_profiles(root: Path, legacy_cwd: Path, *, force: bool = False) -> li
     }
     targets = [root / "config-ab.yml", root / "config-pl.yml"]
     if not force and any(path.exists() or path.is_symlink() for path in targets):
-        raise ValueError("YAML profiles already exist; use --force to back up and replace them")
+        raise ValueError(
+            "YAML profiles already exist; use --force to back up and replace them"
+        )
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
 
     def merge(base, updates):
@@ -129,13 +167,18 @@ def migrate_profiles(root: Path, legacy_cwd: Path, *, force: bool = False) -> li
             else:
                 base[key] = item
 
-    with tempfile.TemporaryDirectory(prefix=".profile-migration-", dir=root) as temporary:
+    with tempfile.TemporaryDirectory(
+        prefix=".profile-migration-", dir=root
+    ) as temporary:
         stage = Path(temporary)
         for name, plan in plans.items():
             complete = asdict(AppConfig())
             merge(complete, plan)
             candidate = stage / f"config-{name}.yml"
-            candidate.write_text(yaml.safe_dump(complete, sort_keys=False, allow_unicode=True), encoding="utf-8")
+            candidate.write_text(
+                yaml.safe_dump(complete, sort_keys=False, allow_unicode=True),
+                encoding="utf-8",
+            )
             candidate.chmod(0o600)
             load_config(candidate)
         changed = [*targets, root / "config.yml"]

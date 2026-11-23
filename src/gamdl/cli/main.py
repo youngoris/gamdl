@@ -33,7 +33,7 @@ class ProfileCommand(ProfileRoutingMixin, CliCommand):
 def main(ctx: click.Context, config_file: Path | None, no_config: bool) -> None:
     """Gamdl — download Apple Music with configurable codecs and progress."""
     path = resolve_config_path(config_file or default_config_path())
-    profile_management = ctx.invoked_subcommand in {"use", "profiles"}
+    profile_management = ctx.invoked_subcommand in {"use", "profiles", "retry"}
     ctx.obj = {
         "config_path": path,
         "config_explicit": config_file is not None,
@@ -42,7 +42,7 @@ def main(ctx: click.Context, config_file: Path | None, no_config: bool) -> None:
     if (
         not no_config
         and not path.exists()
-        and ctx.invoked_subcommand not in {None, "config", "use", "profiles"}
+        and ctx.invoked_subcommand not in {None, "config", "use", "profiles", "retry"}
     ):
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -73,6 +73,7 @@ from .commands.database import database_group
 from .commands.library import library
 from .commands.organize import organize
 from .commands.rip import rip
+from .commands.retry import retry
 from .commands.search import search
 from .commands.sync import sync
 
@@ -86,3 +87,4 @@ main.add_command(organize)
 main.add_command(sync)
 main.add_command(use_profile)
 main.add_command(profiles)
+main.add_command(retry)

@@ -20,10 +20,15 @@ class CliProfileIntegrationTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
         for name in ("ab", "pl"):
-            (self.root / f"config-{name}.yml").write_text(yaml.safe_dump({"output": {"directory": str(self.root / name)}}))
+            (self.root / f"config-{name}.yml").write_text(
+                yaml.safe_dump({"output": {"directory": str(self.root / name)}})
+            )
         self.patches = [
             patch("gamdl.cli.profiles.profile_dir", return_value=self.root),
-            patch("gamdl.cli.main.default_config_path", return_value=self.root / "config.yml"),
+            patch(
+                "gamdl.cli.main.default_config_path",
+                return_value=self.root / "config.yml",
+            ),
         ]
         for item in self.patches:
             item.start()
@@ -57,9 +62,15 @@ class CliProfileIntegrationTests(unittest.TestCase):
     def test_migration_validates_and_preserves_ini(self):
         for path in self.root.glob("config-*.yml"):
             path.unlink()
-        (self.root / "config.ini").write_text("[gamdl]\noutput_path = ./Music\nsong_codec_piority = aac-web\n")
-        (self.root / "config-pl.ini").write_text("[gamdl]\noutput_path = ./Music\nalbum_folder_template = Playlists/{playlist_title}\n")
-        result = CliRunner().invoke(main, ["profiles", "migrate", "--legacy-cwd", str(self.root)])
+        (self.root / "config.ini").write_text(
+            "[gamdl]\noutput_path = ./Music\nsong_codec_piority = aac-web\n"
+        )
+        (self.root / "config-pl.ini").write_text(
+            "[gamdl]\noutput_path = ./Music\nalbum_folder_template = Playlists/{playlist_title}\n"
+        )
+        result = CliRunner().invoke(
+            main, ["profiles", "migrate", "--legacy-cwd", str(self.root)]
+        )
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(current_profile(self.root), "ab")
         self.assertTrue((self.root / "config.ini").is_file())

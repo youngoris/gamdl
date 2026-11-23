@@ -51,6 +51,7 @@ from ..errors import (
 from ..errors import (
     short_error as _short_error,
 )
+from ..failure_queue import restore_media, ticket_for
 from ..options import TAG_NAMES
 from ..output import console as output_console
 from ..output_setup import resolve_output_directory
@@ -197,7 +198,11 @@ def _formatter(options: RipOptions) -> PathFormatter:
 async def run_rip(options: RipOptions) -> int:
     """Process discovered tracks concurrently, returning a stable CLI exit code."""
     _check_options(options)
-    if not options.urls:
+    retry_entries = getattr(options, "retry_entries", None)
+    retry_queue = getattr(options, "failure_queue", None)
+    retry_config = getattr(options, "failure_config_path", None)
+    retry_tickets = {}
+    if not options.urls and retry_entries is None:
         raise click.UsageError("Provide at least one Apple Music URL or ISRC input")
     artist_values = [
         v.strip() for group in options.artist_auto_select for v in group.split(",")
@@ -334,7 +339,7 @@ async def run_rip(options: RipOptions) -> int:
                             request_stop(error)
                             raise
 
-                resolver = MediaResolver(
+                resolver = None if retry_entries is not None else MediaResolver(
                     api,
                     auto_select=[
                         *DEFAULT_AUTO_SELECT,
@@ -367,9 +372,27 @@ async def run_rip(options: RipOptions) -> int:
                 warned_interactive_alac = False
 
                 async def process(occurrence: int, media, title: str) -> None:
+                    retry_key = None
+
+                    def retain_failure(message):
+                        if retry_queue is None or retry_key is None:
+                            return
+                        try:
+                            retry_queue.fail(
+                                retry_key, message,
+                                refreshed=ticket_for(media, title, options, retry_config),
+                            )
+                        except (OSError, ValueError) as error:
+                            record_failure("Retry queue", error)
+
                     try:
                         lease = None
                         check_stopped()
+                        if retry_queue is not None:
+                            ticket = retry_tickets.get(id(media))
+                            if ticket is None:
+                                ticket = ticket_for(media, title, options, retry_config)
+                            retry_key = retry_queue.begin(ticket)
 
                         async def choose_for_track(request):
                             nonlocal lease, warned_interactive_alac
@@ -480,6 +503,8 @@ async def run_rip(options: RipOptions) -> int:
                         finally:
                             if lease is not None:
                                 lease.release()
+                        if retry_queue is not None and retry_key is not None:
+                            retry_queue.complete(retry_key)
                         counts[result.status.value] += 1
                         progress.finish(
                             occurrence, title, result.status.value, path=result.path
@@ -494,10 +519,12 @@ async def run_rip(options: RipOptions) -> int:
                         # Missing catalog playback rights are expected skips,
                         # not codec failures or retryable download errors.
                         counts["skipped"] += 1
+                        retain_failure(_short_error(error)[0])
                         progress.finish(
                             occurrence, title, "skipped", _short_error(error)[0]
                         )
                     except DownloadFinalizationError as error:
+                        retain_failure(_short_error(error)[0])
                         record_failure(title, error)
                         if error.partial_result is not None:
                             counts[error.partial_result.status.value] += 1
@@ -521,6 +548,7 @@ async def run_rip(options: RipOptions) -> int:
                     except Exception as error:
                         record_failure(title, error)
                         message, _ = _short_error(error)
+                        retain_failure(message)
                         counts["failed"] += 1
                         progress.finish(occurrence, title, "failed", message)
                         if options.fail_fast:
@@ -546,7 +574,14 @@ async def run_rip(options: RipOptions) -> int:
                 async def discover() -> None:
                     nonlocal found
                     plan = None
-                    if getattr(options, "count_first", False) and not hasattr(options, "search_term"):
+                    if retry_entries is not None:
+                        progress.start_batch(len(retry_entries))
+                    if (
+                        retry_entries is None
+                        and getattr(options, "count_first", False)
+                        and not hasattr(options, "search_term")
+                    ):
+
                         def source_failed(error):
                             record_failure("Source", error)
                             counts["failed"] += 1
@@ -564,10 +599,19 @@ async def run_rip(options: RipOptions) -> int:
                             source_failed=source_failed,
                         )
                         progress.start_batch(sum(len(items) for items in plan))
-                    for source_index, url in enumerate(options.urls):
+                    source_urls = (None,) if retry_entries is not None else options.urls
+                    for source_index, url in enumerate(source_urls):
                         check_stopped()
                         try:
-                            if hasattr(options, "search_term"):
+                            if retry_entries is not None:
+                                async def retry_source():
+                                    for ticket in retry_entries:
+                                        check_stopped()
+                                        media = restore_media(ticket, api)
+                                        retry_tickets[id(media)] = ticket
+                                        yield media
+                                source_iterator = retry_source()
+                            elif hasattr(options, "search_term"):
 
                                 async def prompt_search(operation):
                                     async with terminal.session():
@@ -816,4 +860,17 @@ async def run_rip(options: RipOptions) -> int:
         f"finalization failures ({found} discovered)"
     )
     _print_failures(console, failures)
+    if retry_queue is not None:
+        try:
+            remaining_items = retry_queue.items()
+            remaining = len(remaining_items)
+        except (OSError, ValueError) as error:
+            record_failure("Retry queue", error)
+            return 1
+        if remaining:
+            console.print(f"失败/中断队列还有 {remaining} 首；使用 gamdl retry 重试，或 gamdl retry --list 查看。")
+        if retry_entries is not None:
+            requested = {entry["key"] for entry in retry_entries}
+            if any(entry["key"] in requested for entry in remaining_items):
+                return 1
     return 1 if counts["failed"] or counts["finalization_failed"] else 0

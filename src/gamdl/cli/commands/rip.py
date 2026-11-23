@@ -16,6 +16,11 @@ def rip(options: RipOptions) -> None:
     from .runner import run_rip
 
     options.urls = expand_rip_inputs(options.urls)
+    from ..failure_queue import FailureQueue
+
+    root = click.get_current_context().find_root().obj
+    options.failure_queue = FailureQueue()
+    options.failure_config_path = None if root["no_config"] else root["config_path"].resolve()
     try:
         exit_code = asyncio.run(run_rip(options))
     except KeyboardInterrupt:

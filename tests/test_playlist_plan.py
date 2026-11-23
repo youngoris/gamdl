@@ -19,9 +19,15 @@ from gamdl.media import MediaSource, Playlist, Song, SongCodec
 class PlaylistNamingTests(unittest.IsolatedAsyncioTestCase):
     async def test_name_and_original_index_do_not_require_playlist_file(self):
         api = Mock()
-        api.get_library_playlist = AsyncMock(return_value={"data": [{"attributes": {"name": "RMH精选2-2", "curatorName": "Andre"}}]})
+        api.get_library_playlist = AsyncMock(
+            return_value={
+                "data": [{"attributes": {"name": "RMH精选2-2", "curatorName": "Andre"}}]
+            }
+        )
         playlist = Playlist("p.test", api=api, is_library=True)
-        media = Song.from_metadata({"id": "123", "type": "songs", "attributes": {"name": "Example"}}, api=api)
+        media = Song.from_metadata(
+            {"id": "123", "type": "songs", "attributes": {"name": "Example"}}, api=api
+        )
         media.source = MediaSource("playlist_tracks", "p.test", 0, playlist)
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -29,10 +35,24 @@ class PlaylistNamingTests(unittest.IsolatedAsyncioTestCase):
             target.parent.mkdir(parents=True)
             target.write_bytes(b"existing media")
             resolver = Mock()
-            resolver.get_tags = AsyncMock(return_value=Tags(title="Example", artist="Artist", album="Album", album_artist="Artist", track_number=2))
-            formatter = PathFormatter(root, album_folder_template="Playlists/{playlist_title}", single_disc_file_template="{playlist_track:03d} {title} - {artist}")
+            resolver.get_tags = AsyncMock(
+                return_value=Tags(
+                    title="Example",
+                    artist="Artist",
+                    album="Album",
+                    album_artist="Artist",
+                    track_number=2,
+                )
+            )
+            formatter = PathFormatter(
+                root,
+                album_folder_template="Playlists/{playlist_title}",
+                single_disc_file_template="{playlist_track:03d} {title} - {artist}",
+            )
             downloader = Downloader(path_formatter=formatter, tag_resolver=resolver)
-            result = await downloader.download(media, codec_priority=[SongCodec.AAC_WEB], save_playlist=False)
+            result = await downloader.download(
+                media, codec_priority=[SongCodec.AAC_WEB], save_playlist=False
+            )
             self.assertEqual(result.path, target)
             self.assertEqual(result.status, MediaStatus.SKIPPED)
             api.get_library_playlist.assert_awaited_once()
@@ -42,16 +62,32 @@ class PlaylistNamingTests(unittest.IsolatedAsyncioTestCase):
         api = Mock()
         api.get_playlist = AsyncMock()
         playlist = Playlist("pl.test", api=api)
-        media = Song.from_metadata({"id": "123", "type": "songs", "attributes": {"name": "Example"}}, api=api)
+        media = Song.from_metadata(
+            {"id": "123", "type": "songs", "attributes": {"name": "Example"}}, api=api
+        )
         media.source = MediaSource("playlist_tracks", "pl.test", 0, playlist)
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             target = root / "Artist/Album/02 Example.m4a"
             target.parent.mkdir(parents=True)
             target.write_bytes(b"existing media")
-            resolver = Mock(get_tags=AsyncMock(return_value=Tags(title="Example", artist="Artist", album="Album", album_artist="Artist", track_number=2)))
-            downloader = Downloader(path_formatter=PathFormatter(root), tag_resolver=resolver)
-            result = await downloader.download(media, codec_priority=[SongCodec.AAC_WEB], save_playlist=False)
+            resolver = Mock(
+                get_tags=AsyncMock(
+                    return_value=Tags(
+                        title="Example",
+                        artist="Artist",
+                        album="Album",
+                        album_artist="Artist",
+                        track_number=2,
+                    )
+                )
+            )
+            downloader = Downloader(
+                path_formatter=PathFormatter(root), tag_resolver=resolver
+            )
+            result = await downloader.download(
+                media, codec_priority=[SongCodec.AAC_WEB], save_playlist=False
+            )
             self.assertEqual(result.path, target)
             api.get_playlist.assert_not_awaited()
 
@@ -63,7 +99,14 @@ class CountFirstTests(unittest.IsolatedAsyncioTestCase):
         for album, count in (("first", 2), ("second", 3)):
             songs[album] = []
             for index in range(count):
-                song = Song.from_metadata({"id": f"{album}-{index}", "type": "songs", "attributes": {"name": f"Song {index}", "albumName": album}}, api=api)
+                song = Song.from_metadata(
+                    {
+                        "id": f"{album}-{index}",
+                        "type": "songs",
+                        "attributes": {"name": f"Song {index}", "albumName": album},
+                    },
+                    api=api,
+                )
                 song.source = MediaSource("album_tracks", album, index)
                 songs[album].append(song)
         resolved = []
@@ -78,24 +121,37 @@ class CountFirstTests(unittest.IsolatedAsyncioTestCase):
                 resolved.append(url)
 
         received = []
+
         async def download(media, **kwargs):
             self.assertEqual(resolved, ["first", "second"])
             received.append(media.id)
-            return DownloadResult(media.id, Path("test.m4a"), MediaStatus.DOWNLOADED, 1, SongCodec.AAC_WEB)
+            return DownloadResult(
+                media.id, Path("test.m4a"), MediaStatus.DOWNLOADED, 1, SongCodec.AAC_WEB
+            )
 
         output = StringIO()
         console = Console(file=output, force_terminal=False)
         progress = RipProgress(enabled=False, console=console)
         downloader = Mock(itunes_api=None, download=AsyncMock(side_effect=download))
         with (
-            patch("gamdl.cli.commands.runner._authenticate", new=AsyncMock(return_value=(api, None))),
+            patch(
+                "gamdl.cli.commands.runner._authenticate",
+                new=AsyncMock(return_value=(api, None)),
+            ),
             patch("gamdl.cli.commands.runner.create_drm", new=AsyncMock()),
             patch("gamdl.cli.commands.runner.MediaResolver", Resolver),
             patch("gamdl.cli.commands.runner.Downloader", return_value=downloader),
             patch("gamdl.cli.commands.runner.output_console", return_value=console),
             patch("gamdl.cli.commands.runner.RipProgress", return_value=progress),
         ):
-            code = await run_rip(RipOptions(("first", "second"), output_dir="Test Music", no_progress=True, count_first=True))
+            code = await run_rip(
+                RipOptions(
+                    ("first", "second"),
+                    output_dir="Test Music",
+                    no_progress=True,
+                    count_first=True,
+                )
+            )
         self.assertEqual(code, 0, output.getvalue())
         self.assertEqual(len(received), 5)
         text = output.getvalue()

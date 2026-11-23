@@ -40,7 +40,9 @@ def current_profile(directory: Path | None = None) -> str:
     return "custom"
 
 
-def activate_profile(name: str, directory: Path | None = None, *, validator=None) -> Path:
+def activate_profile(
+    name: str, directory: Path | None = None, *, validator=None
+) -> Path:
     root = directory or profile_dir()
     target = profile_path(name, root)
     if not target.is_file():
@@ -100,6 +102,7 @@ class ProfileRoutingMixin:
         if index < len(values):
             command = values[index]
             if command in PROFILE_NAMES:
+                ctx.meta["profile_alias"] = command
                 if explicit_config:
                     raise click.UsageError(
                         "ab/pl cannot be combined with --config or --no-config", ctx
@@ -116,7 +119,8 @@ class ProfileRoutingMixin:
                     if remaining[0] not in self.commands:
                         remaining.insert(0, "rip")
                     if remaining[0] == "rip" and not any(
-                        flag in remaining for flag in ("--count-first", "--stream-discovery")
+                        flag in remaining
+                        for flag in ("--count-first", "--stream-discovery")
                     ):
                         remaining.insert(1, "--count-first")
                     values[index:] = ["--config", str(path), *remaining]
@@ -150,7 +154,9 @@ def profiles(ctx: click.Context) -> None:
         for name in PROFILE_NAMES:
             click.echo(f"{name}: {profile_path(name)}")
         if os.environ.get("GAMDL_CONFIG"):
-            click.echo("GAMDL_CONFIG overrides the default; ab/pl select their own profile.")
+            click.echo(
+                "GAMDL_CONFIG overrides the default; ab/pl select their own profile."
+            )
 
 
 @profiles.command("migrate")
@@ -160,13 +166,17 @@ def profiles(ctx: click.Context) -> None:
     default=Path.home,
     help="Original working directory used by relative INI paths (default: home).",
 )
-@click.option("--force", is_flag=True, help="Back up and replace existing YAML profiles")
+@click.option(
+    "--force", is_flag=True, help="Back up and replace existing YAML profiles"
+)
 def migrate(legacy_cwd: Path, force: bool) -> None:
     """Migrate config-ab.ini/config.ini and config-pl.ini; default to ab."""
     from .profile_migration import migrate_profiles
 
     try:
-        paths = migrate_profiles(profile_dir(), legacy_cwd.expanduser().absolute(), force=force)
+        paths = migrate_profiles(
+            profile_dir(), legacy_cwd.expanduser().absolute(), force=force
+        )
     except (ValueError, OSError) as exc:
         raise click.ClickException(str(exc)) from exc
     for path in paths:

@@ -74,3 +74,26 @@ To invoke the manual workflow with GitHub CLI:
 ```bash
 gh workflow run sync-upstream.yml --ref profiles
 ```
+
+## Retry failed tracks only
+
+Failed and interrupted attempts are recorded automatically in the private
+`~/.gamdl/failed-downloads.json` queue. Successful downloads and existing files
+that finish normally are removed from the queue.
+
+| Command | Behavior |
+| --- | --- |
+| `gamdl retry` | Retry all recorded failures using their original profiles |
+| `gamdl retry --list` | Show failed IDs and original playlist positions |
+| `gamdl retry --id 423354412` | Retry only a recorded media ID |
+| `gamdl pl retry` | Retry only playlist-profile failures |
+| `gamdl ab retry` | Retry only album-profile failures |
+
+Retries reconstruct individual media IDs and preserve the original playlist
+name, one-based position and download settings. They never enumerate the
+original playlist, albums or artist collections. If a playlist name was not
+available before an interruption, a single playlist-metadata request may be
+needed; tracks are still resolved individually. Authentication comes from the
+current local configuration; cookies, user tokens and playback URLs are not
+stored in the retry queue. Previously unrecorded failures cannot be inferred
+automatically from an old terminal log.

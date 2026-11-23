@@ -12,7 +12,9 @@ from gamdl.exceptions import GamdlError
 
 
 def _single_line(value):
-    return "".join(" " if ord(char) < 32 or ord(char) == 127 else char for char in str(value))
+    return "".join(
+        " " if ord(char) < 32 or ord(char) == 127 else char for char in str(value)
+    )
 
 
 async def replay_source(items):
@@ -20,7 +22,9 @@ async def replay_source(items):
         yield item
 
 
-async def collect_plan(resolver, urls, *, progress, console, check_stopped, source_failed):
+async def collect_plan(
+    resolver, urls, *, progress, console, check_stopped, source_failed
+):
     """Fetch collection pages once, preserving order and duplicate occurrences.
 
     No playback, license or audio requests are made here. The original media
@@ -42,15 +46,22 @@ async def collect_plan(resolver, urls, *, progress, console, check_stopped, sour
                     found += 1
                     progress.discovered(found)
                     context = media.source
-                    if context is not None and context.kind in {"playlist_tracks", "album_tracks"}:
+                    if context is not None and context.kind in {
+                        "playlist_tracks",
+                        "album_tracks",
+                    }:
                         key = (context.kind, context.id)
                         if key not in groups:
                             label = context.id
                             try:
                                 if context.playlist is not None:
-                                    label = (await context.playlist.get_metadata()).title
+                                    label = (
+                                        await context.playlist.get_metadata()
+                                    ).title
                                 else:
-                                    attributes = (await media.get_metadata()).get("attributes", {})
+                                    attributes = (await media.get_metadata()).get(
+                                        "attributes", {}
+                                    )
                                     label = attributes.get("albumName") or label
                             except GamdlError:
                                 pass
